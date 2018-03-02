@@ -1,0 +1,130 @@
+---
+title: "Interactions Full Transcriptome"
+author: "RAZ"
+date: "December 14, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("DESeq2")
+library("genefilter")
+library("seqinr")
+library("VennDiagram")
+```
+
+```{r, echo=FALSE, results="hide"}
+setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_data/design_matrices")
+experimental_design <- read.csv("../design_matrices/express_design_matrix.csv",row.names = 1)
+
+setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_data/sailfish_raw_counts")
+readcounts_full <- read.csv("full_index_reads_rounded.csv", row.names = 1)
+###subset counts and design
+readcounts_horn <- readcounts_full[, grep(".*hdhorn", colnames(readcounts_full),)]
+
+expdesign_horn <- experimental_design[grep("hdhorn", experimental_design$tissue),]
+colnames(readcounts_horn) == row.names(expdesign_horn)
+
+
+horn.dds <- DESeqDataSetFromMatrix(readcounts_horn, expdesign_horn , 
+                                  design = formula(~ sex + size + size:sex))
+
+horn.dds <-DESeq(horn.dds, quiet=TRUE)
+
+
+
+##thoracic horn
+readcounts_th <- readcounts_full[, grep(".*thxhorn", colnames(readcounts_full),)]
+
+expdesign_th <- experimental_design[grep("thxhorn", experimental_design$tissue),]
+colnames(readcounts_th) == row.names(expdesign_th)
+
+th.dds <- DESeqDataSetFromMatrix(readcounts_th, expdesign_th , 
+                                   design = formula(~ sex + size + size:sex))
+
+th.dds <-DESeq(th.dds, quiet=TRUE)
+
+
+
+
+##wings
+readcounts_win <- readcounts_full[, grep(".*wings", colnames(readcounts_full),)]
+
+expdesign_win <- experimental_design[grep("wings", experimental_design$tissue),]
+colnames(readcounts_win) == row.names(expdesign_win)
+
+win.dds <- DESeqDataSetFromMatrix(readcounts_win, expdesign_win , 
+                                 design = formula(~ sex + size + size:sex))
+
+win.dds <-DESeq(win.dds, quiet=TRUE)
+
+
+
+
+```
+So, I subsetted the full data by tissue (head horn, thoracic horns, or wings). I used the model design = formula(~ sex + size + size:sex). Finally, I called results() on the full .dds object, and if I recall, that returns just the final factor in the model, i.e. size:sex, i.e. the interaction term. 
+
+
+```{r}
+summary(results(horn.dds, alpha=0.05))
+summary(results(th.dds, alpha=0.05))
+summary(results(win.dds, alpha=0.05))
+```
+
+```{r, echo=FALSE}
+horn.de<-subset(results(horn.dds, alpha=0.05), padj <0.05)
+th.de<-subset(results(th.dds, alpha=0.05), padj <0.05)
+win.de<-subset(results(win.dds, alpha=0.05), padj <0.05)
+
+
+```
+Here's a Venn diagram of the overlap in DE genes in the interactions 
+```{r, echo=FALSE}
+de_contigs<- (list(rownames(horn.de), rownames(th.de), rownames(win.de)))
+names(de_contigs)<- c("Head Horn", "Th Horn", "Wings")
+vp.contigs <- venn.diagram(de_contigs, 
+                                  fill = c("blue", "purple", "green"), cex=1.25, filename = NULL, main="Overlap in Interaction DE Genes");
+grid.draw(vp.contigs)
+```
+
+```{r, echo=FALSE, results="hide"}
+all.dds <- DESeqDataSetFromMatrix(readcounts_full, experimental_design , 
+                                  design = formula(~ tissue + size + tissue:size))
+all.dds$group<- factor(paste0(all.dds$tissue, all.dds$size, all.dds$sex))
+
+design(all.dds) <- ~ group
+all.dds <-DESeq(all.dds, quiet=TRUE)
+```
+
+Below, I tried to address the idea you had about running large tissues vs all other tissues (i.e. large male horns vs large female horns, small female horns, and small male horns combined). From what I've read, when doing an analysis of this type you need to adjust the denominator to take the average value of everything specified to it, so I've done so with listValues. I'm not sure what to make of all the data in this report, however, or even if it was the right way to handle this. It SEEMS to give us the results I want! Hh > Th horns > Wings, but on the other hand, pulling the interaction terms specifically, above, gives a different picture. 
+```{r}
+horn.vsall<-results(all.dds, 
+contrast=list("grouphdhornlgmale", c("grouphdhornsmmale","grouphdhornsmfemale","grouphdhornlgfemale")), listValues=c(1,-1/3), alpha=0.05)
+
+summary(horn.vsall)
+
+thx.vsall<-results(all.dds, 
+contrast=list("groupthxhornlgmale", c("groupthxhornsmmale","groupthxhornsmfemale","groupthxhornlgfemale")), listValues=c(1,-1/3), alpha=0.05)
+
+summary(thx.vsall)
+
+wings.vsall<-results(all.dds, 
+contrast=list("groupwingslgmale", c("groupwingssmmale","groupwingssmfemale","groupwingslgfemale")), listValues=c(1,-1/3), alpha=0.05)
+
+summary(wings.vsall)
+
+```
+
+```{r, echo=FALSE}
+hornvsall.de<-subset(horn.vsall, padj <0.05)
+thxvsall.de<-subset(thx.vsall, padj <0.05)
+wingsvsall.de<-subset(wings.vsall, padj <0.05)
+
+de_contigs_vsall<- (list(rownames(hornvsall.de), rownames(thxvsall.de), rownames(wingsvsall.de)))
+names(de_contigs_vsall)<- c("Head Horn", "Th Horn", "Wings")
+vp.contigs_vsall <- venn.diagram(de_contigs_vsall, 
+                                  fill = c("blue", "purple", "green"), cex=1.25, filename = NULL, main="Overlap in Interaction DE Genes contrasting Lg vs All");
+grid.draw(vp.contigs_vsall)
+
+```
+

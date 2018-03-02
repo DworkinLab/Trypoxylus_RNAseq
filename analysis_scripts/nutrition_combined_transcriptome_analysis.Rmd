@@ -1,0 +1,187 @@
+---
+title: "RNA_seq_Combined_Transcriptome_nutrition"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("DESeq2")
+library("VennDiagram")
+library("ggplot2")
+```
+
+
+Import the experimental design file
+```{r, echo=FALSE}
+setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_data/design_matrices")
+experimental_design <- read.csv("../design_matrices/express_design_matrix.csv",row.names = 1)
+
+```
+
+
+```{r, echo=FALSE}
+setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_data/sailfish_raw_counts")
+readcounts_dm <- read.csv("combine_index_reads_rounded.csv", row.names = 1)
+```
+
+### Run the DEseq Model
+```{r}
+all.dds <- DESeqDataSetFromMatrix(readcounts_dm, experimental_design , 
+                                  design = formula(~ tissue + size + tissue:size))
+all.dds$group<- factor(paste0(all.dds$tissue, all.dds$size, all.dds$sex))
+
+design(all.dds) <- ~ group
+all.dds <-DESeq(all.dds, quiet=TRUE)
+```
+
+Compute the contrasts of interest and get the numbers of DE genes from each contrast, Combined Transcriptome
+
+## Males
+
+
+```{r}
+lgvssm.m.hd<-results(all.dds, contrast=c("group", "hdhornlgmale", "hdhornsmmale"), alpha = 0.05)
+summary(lgvssm.m.hd)
+lgvssm.m.th<-results(all.dds, contrast=c("group", "thxhornlgmale", "thxhornsmmale"), alpha = 0.05)
+summary(lgvssm.m.th)
+lgvssm.m.win<-results(all.dds, contrast=c("group", "wingslgmale", "wingssmmale"), alpha = 0.05)
+summary(lgvssm.m.win)
+lgvssm.m.gen<-results(all.dds, contrast=c("group", "genitalialgmale", "genitaliasmmale"), alpha = 0.05)
+summary(lgvssm.m.gen)
+
+```
+
+## Females
+
+
+```{r}
+
+lgvssm.f.hd<-results(all.dds, contrast=c("group", "hdhornlgfemale", "hdhornsmfemale"), alpha = 0.05)
+summary(lgvssm.f.hd)
+lgvssm.f.th<-results(all.dds, contrast=c("group", "thxhornlgfemale", "thxhornsmfemale"), alpha = 0.05)
+summary(lgvssm.f.th)
+lgvssm.f.win<-results(all.dds, contrast=c("group", "wingslgfemale", "wingssmfemale"), alpha = 0.05)
+summary(lgvssm.f.win)
+```
+
+
+## Male MA Plots, Combined Transcriptome
+
+
+```{r, echo=FALSE}
+par(mfrow= c(2,2))
+plot(y = lgvssm.m.hd$log2FoldChange, x =log2(lgvssm.m.hd$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression males",
+     main = " MAplot males high vs low in head horns", pch = 1, col ="grey", ylim=c(-3,3))
+with(subset(lgvssm.m.hd, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="blue"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+
+
+plot(y = lgvssm.m.th$log2FoldChange, x =log2(lgvssm.m.th$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression males",
+     main = " MAplot males high vs low in thoracic horns", pch = 1, col ="grey", ylim=c(-3,3))
+with(subset(lgvssm.m.th, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="purple"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+
+plot(y = lgvssm.m.win$log2FoldChange, x =log2(lgvssm.m.win$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression males",
+     main = " MAplot males high vs low in wings", pch = 1, col ="grey", ylim=c(-3,3))
+with(subset(lgvssm.m.win, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="forestgreen"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+
+plot(y = lgvssm.m.gen$log2FoldChange, x =log2(lgvssm.m.gen$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression males",
+     main = " MAplot males high vs low in genitals", pch =1, col ="grey", ylim=c(-3,3))
+with(subset(lgvssm.m.gen, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="red"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+dev.off()
+
+```
+## Female MA Plots, Combined Transcriptome
+
+
+```{r, echo=FALSE}
+par(mfrow= c(2,2))
+
+plot(y = lgvssm.f.hd$log2FoldChange, x =log2(lgvssm.f.hd$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression females",
+     main = " MAplot females high vs low in head horns", pch = 1, col ="grey", ylim=c(-4,4))
+with(subset(lgvssm.f.hd, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="blue"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+
+plot(y = lgvssm.f.th$log2FoldChange, x =log2(lgvssm.f.th$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression females",
+     main = " MAplot females high vs low in thoracic horns", pch = 1, col ="grey", ylim=c(-4,4))
+with(subset(lgvssm.f.th, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="purple"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+
+
+plot(y = lgvssm.f.win$log2FoldChange, x =log2(lgvssm.f.win$baseMean) , 
+     ylab = "log2 fold change (H/L)", xlab = "mean expression females",
+     main = " MAplot females high vs low in wings", pch = 1, col ="grey", ylim=c(-4,4))
+with(subset(lgvssm.f.win, padj<.05 ), 
+     points(y=log2FoldChange, x=log2(baseMean),
+            pch=17, cex = 1.25, col="forestgreen"))
+abline(a=0, b=0 , col="black", lty=3)
+abline(a=1,-1, b=0, col="black")
+plot.new()
+dev.off()
+```
+
+
+```{r, echo=FALSE}
+size.male.hd.sig <- subset(lgvssm.m.hd, padj < 0.05)
+size.male.th.sig <- subset(lgvssm.m.th, padj < 0.05)
+size.male.win.sig <- subset(lgvssm.m.win, padj < 0.05)
+size.male.gen.sig <- subset(lgvssm.m.gen, padj < 0.05)
+size.female.hd.sig <- subset(lgvssm.f.hd, padj < 0.05)
+size.female.th.sig <- subset(lgvssm.f.th, padj < 0.05)
+size.female.win.sig <- subset(lgvssm.f.win, padj < 0.05)
+```
+
+
+## Male Venn Diagram, Combined Transcriptome
+
+
+```{r, echo=FALSE}
+flog.threshold(ERROR)
+male.nutrition<- (list(rownames(size.male.hd.sig), rownames(size.male.th.sig), rownames(size.male.win.sig), rownames(size.male.gen.sig)))
+names(male.nutrition)<- c("Head", "Thorax", "Wings", 'Genitals')
+
+vp.nutrition <- venn.diagram(male.nutrition, 
+                             fill = c("blue", "purple", "green", "red"), cex=1.25, filename = NULL, main="Male Nutritionally Responsive Expression");
+grid.draw(vp.nutrition)
+```
+
+## Female Venn Diagram, Combined Transcriptome
+
+
+```{r, echo=FALSE}
+flog.threshold(ERROR)
+female.nutrition<- (list(rownames(size.female.hd.sig), 
+                         rownames(size.female.th.sig),
+                         rownames(size.female.win.sig)))
+names(female.nutrition)<- c("Head", "Thorax", "Wings")
+vp.f.nutrition <- venn.diagram(female.nutrition, 
+                               fill = c("blue", "purple", "green"), cex=1.25, filename = NULL, main="Female Nutritionally Responsive Expression");
+grid.draw(vp.f.nutrition)
+```

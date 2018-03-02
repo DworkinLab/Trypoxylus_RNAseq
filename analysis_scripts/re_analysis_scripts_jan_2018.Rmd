@@ -23,7 +23,7 @@ library("org.Dm.eg.db")
 BUSCO Analysis
 
 ```{r, echo=FALSE}
-setwd("raw_count_data/")
+setwd("../raw_count_data/")
 
 busco<-read.csv("busco_results_v2.csv")
 busco.p <-read.csv("busco_percentages.csv")
@@ -63,7 +63,7 @@ ggplot() +
 # DESeq Analysis
 
 ```{r, echo=FALSE, results="hide"}
-setwd("raw_count_data/")
+setwd("../raw_count_data/")
 experimental_design <- read.csv("express_design_matrix.csv",row.names = 1)
 
 

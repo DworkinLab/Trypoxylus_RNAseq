@@ -23,7 +23,7 @@ library("org.Dm.eg.db")
 BUSCO Analysis
 
 ```{r, echo=FALSE}
-setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_drafts/resubmission_files/tables")
+setwd("raw_count_data/")
 
 busco<-read.csv("busco_results_v2.csv")
 busco.p <-read.csv("busco_percentages.csv")
@@ -63,10 +63,10 @@ ggplot() +
 # DESeq Analysis
 
 ```{r, echo=FALSE, results="hide"}
-setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_data/design_matrices")
-experimental_design <- read.csv("../design_matrices/express_design_matrix.csv",row.names = 1)
+setwd("raw_count_data/")
+experimental_design <- read.csv("express_design_matrix.csv",row.names = 1)
 
-setwd("C:/Users/rober/Dropbox/BeetleRNASeq/manuscript_files/manuscript_data/sailfish_raw_counts")
+
 readcounts_full <- read.csv("full_index_reads_rounded_annot.csv", row.names = 1)
 
 

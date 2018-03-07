@@ -67,6 +67,8 @@ win.de<-subset(results(win.dds, alpha=0.05), padj <0.05)
 
 ```
 I'm sparing you the majority of the code to generate the reaction norm counts, but below I at least show the calculations of the log2 counts that I use for basically the rest of this document. 
+
+
 ```{r}
 hi.counts <-t(abs(log2((counts(horn.dds[rownames(horn.de), ], 
                                normalized=TRUE, replaced=FALSE)+0.5)))) %>%

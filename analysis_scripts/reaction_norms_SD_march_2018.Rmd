@@ -1,0 +1,267 @@
+---
+title: "Reaction norm and SD correlation"
+author: "RAZ"
+date: "March 7, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("ggplot2")
+library("DESeq2")
+library("plyr")
+library("dplyr")
+library("tidyr")
+```
+
+```{r, echo=FALSE, results="hide"}
+setwd("C:/Users/rober/Dropbox/Grad School Research/Manuscripts/Trypoxylus_RNAseq/raw_count_data")
+
+experimental_design <- read.csv("express_design_matrix.csv",row.names = 1)
+
+
+readcounts_full <- read.csv("full_index_reads_rounded_annot.csv", row.names = 1)
+
+
+
+readcounts_horn <- readcounts_full[, grep(".*hdhorn", colnames(readcounts_full),)]
+
+expdesign_horn <- experimental_design[grep("hdhorn", experimental_design$tissue),]
+colnames(readcounts_horn) == row.names(expdesign_horn)
+
+
+horn.dds <- DESeqDataSetFromMatrix(readcounts_horn, expdesign_horn , 
+                                   design = formula(~ sex + size + size:sex))
+
+horn.dds <-DESeq(horn.dds, quiet=TRUE)
+
+
+
+##thoracic horn
+readcounts_th <- readcounts_full[, grep(".*thxhorn", colnames(readcounts_full),)]
+
+expdesign_th <- experimental_design[grep("thxhorn", experimental_design$tissue),]
+colnames(readcounts_th) == row.names(expdesign_th)
+
+th.dds <- DESeqDataSetFromMatrix(readcounts_th, expdesign_th , 
+                                 design = formula(~ sex + size + size:sex))
+
+th.dds <-DESeq(th.dds, quiet=TRUE)
+
+
+##wings
+readcounts_win <- readcounts_full[, grep(".*wings", colnames(readcounts_full),)]
+
+expdesign_win <- experimental_design[grep("wings", experimental_design$tissue),]
+colnames(readcounts_win) == row.names(expdesign_win)
+
+win.dds <- DESeqDataSetFromMatrix(readcounts_win, expdesign_win , 
+                                  design = formula(~ sex + size + size:sex))
+
+win.dds <-DESeq(win.dds, quiet=TRUE)
+
+
+horn.de<-subset(results(horn.dds, alpha=0.05), padj <0.05)
+th.de<-subset(results(th.dds, alpha=0.05), padj <0.05)
+win.de<-subset(results(win.dds, alpha=0.05), padj <0.05)
+
+```
+I'm sparing you the majority of the code to generate the reaction norm counts, but below I at least show the calculations of the log2 counts that I use for basically the rest of this document. 
+```{r}
+hi.counts <-t(abs(log2((counts(horn.dds[rownames(horn.de), ], 
+                               normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(horn.dds), ., by="row.names") %>%
+  gather(gene, expression, (ncol(.)-length(rownames(horn.de))+1):ncol(.)) %>%
+  rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+```
+
+```{r, echo=FALSE}
+
+ti.counts <- t(abs(log2((counts(th.dds[rownames(th.de), ],
+                                normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(th.dds), ., by="row.names") %>%
+  gather(gene, expression, (ncol(.)-length(rownames(th.de))+1):ncol(.))%>%
+  rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+
+
+wi.counts <- t(abs(log2((counts(win.dds[rownames(win.de), ],
+                                normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(win.dds), ., by="row.names") %>%
+  gather(gene, expression, (ncol(.)-length(rownames(win.de))+1):ncol(.))%>%
+  rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+
+
+
+interact.counts <- bind_rows(list(horn = hi.counts, thx = ti.counts, wing=wi.counts), .id = "compare")
+
+
+```
+Okay, so below I graphed the mean expression for each gene, across the groups of sex, size, and tissue, and plotted it across the "four conditions", i.e. large and small males, and large and small females. All of these genes are the genes thare are DE based on the size*sex interaction, coerced into a vector of unique genes. 
+```{r}
+summarise.count <-interact.counts %>% group_by(gene, sex, size, tissue) %>% 
+                     dplyr::summarise(mean=mean(expression)) %>% 
+                     tidyr::unite("condition", size , sex, sep="")
+
+ggplot(summarise.count, aes(x=condition, y=mean, color=tissue))+
+  geom_point()+geom_line(aes(group=interaction(gene)))+
+  #scale_x_discrete(labels=c("Head Horn", "Thorax Horn", "Wings"))+
+  labs(x="condition", 
+       y="Expression (log normalized counts)")+
+  facet_grid(~tissue)
+
+```
+
+The figure is a bit messy, so what I did after that was instead condense ALL of these values into "tissue means", which gets rid of a lot of data, but is kind of nice and interesting. I played around with calculating SE bars for this graph, but it kept freaking out and I abandoned it. If you've got a quick fix, by all means go for it. 
+
+```{r}
+summarise.mean <-interact.counts %>% group_by(gene, sex, size, tissue) %>% 
+                    dplyr::summarise(mean=mean(expression)) %>% 
+                    unite("condition", size , sex, sep="") %>% 
+                    group_by(tissue, condition)%>% 
+                    dplyr::summarise(tissuemean=mean(mean)) %>% 
+                    mutate(condition = factor(condition, levels=c("lgmale", "smmale", "lgfemale", "smfemale")))
+
+ggplot(summarise.mean, aes(x=condition, y=tissuemean, color=tissue))+
+  geom_point()+
+  geom_line(aes(group=interaction(tissue)))+
+  labs(x="condition", 
+       y="Mean Expression (log normalized counts)")
+
+```
+
+I think this graph is interesting. The average of all genes across tissues follows the same patterns, but differ in magnitude (kind of also confirming our vector correlation analysis as well.) What I didn't expect was that thoracic horns were so much higher than the others. I did a dumb thing that I'm not super into, where I fit linear allometric regression lines to each tissue, and thoracic horns have an almost statistically significantly higher intercept term than the other tissues, but this analysis is kind of dumb and not super appropriate. I've put it below, but feel free to disregard.
+
+```{r}
+
+male.allom<- filter(interact.counts, sex=="male") %>% 
+  group_by(individual, tissue) %>%
+  dplyr::summarise(mean=mean(expression), mass=log(mean(mass))) 
+ggplot(male.allom, aes(x=mass, y=mean, color=tissue))+
+  geom_point()+
+  geom_smooth(method="lm")
+
+
+summary(lm(mean~tissue/mass-1, data=male.allom))
+```
+
+Finally, here's the SD stuff. Note that these initial analyses were only done on the genes DE by Size, not by sex, so it's only like 225 genes or so. If this looks good, I can redo it quickly for the sex-responsive genes. 
+
+```{r, echo=FALSE, results="hide"}
+
+
+all.dds <- DESeqDataSetFromMatrix(readcounts_full, experimental_design , 
+                                  design = formula(~ tissue + size + tissue:size))
+all.dds$group<- factor(paste0(all.dds$tissue, all.dds$size, all.dds$sex))
+
+design(all.dds) <- ~ group
+all.dds <-DESeq(all.dds, quiet=TRUE)
+
+lgvssm.m.hd<-results(all.dds, contrast=c("group", "hdhornlgmale", "hdhornsmmale"), alpha = 0.05)
+lgvssm.m.th<-results(all.dds, contrast=c("group", "thxhornlgmale", "thxhornsmmale"), alpha = 0.05)
+lgvssm.m.win<-results(all.dds, contrast=c("group", "wingslgmale", "wingssmmale"), alpha = 0.05)
+lgvssm.m.gen<-results(all.dds, contrast=c("group", "genitalialgmale", "genitaliasmmale"), alpha = 0.05)
+
+
+mvf.hd<-results(all.dds, contrast=list(c("grouphdhornlgmale","grouphdhornsmmale"), c("grouphdhornsmfemale","grouphdhornlgfemale")), listValues=c(1/2,-1/2), alpha = 0.05)
+mvf.th<-results(all.dds, contrast=list(c("groupthxhornlgmale","groupthxhornsmmale"), c("groupthxhornsmfemale","groupthxhornlgfemale")), listValues=c(1/2,-1/2), alpha = 0.05)
+mvf.win<-results(all.dds, contrast=list(c("groupwingslgmale","groupwingssmmale"), c("groupwingssmfemale","groupwingslgfemale")), listValues=c(1/2,-1/2), alpha = 0.05)
+
+
+size.male.hd.sig <- as.data.frame(subset(lgvssm.m.hd, padj < 0.05))
+size.male.th.sig <- as.data.frame(subset(lgvssm.m.th, padj < 0.05))
+size.male.win.sig <- as.data.frame(subset(lgvssm.m.win, padj < 0.05))
+size.male.gen.sig <- as.data.frame(subset(lgvssm.m.gen, padj < 0.05))
+
+
+mvf.hd.sig<-as.data.frame(subset(mvf.hd, padj < 0.05))
+mvf.th.sig<-as.data.frame(subset(mvf.th, padj < 0.05))
+mvf.win.sig<-as.data.frame(subset(mvf.win, padj < 0.05))
+
+
+
+de.size<- unique(c(rownames(size.male.hd.sig), rownames(size.male.th.sig), rownames(size.male.win.sig), rownames(size.male.gen.sig)))
+
+de.sex<- unique(c(rownames(mvf.hd.sig), rownames(mvf.th.sig), rownames(mvf.win.sig)))
+
+
+rld <- rlog(all.dds)
+rld.assay <-(assay(rld))
+
+```
+
+I made two subsets. First I took the log2 counts of all the genes responsive to sex, and then I took the regularized log transform results for those genes. 
+```{r}
+
+de.counts <-t(abs(log2((counts(all.dds[de.size, ], 
+                               normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(all.dds), ., by="row.names") %>%
+  gather(gene, log2, (ncol(.)-length(de.size)+1):ncol(.)) %>%
+  dplyr::rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+
+
+degenes.rld<-t(rld.assay[de.size, ]) %>%
+  merge(colData(all.dds), ., by="row.names") %>%
+  gather(gene, rld, (ncol(.)-length(de.size)+1):ncol(.)) %>%
+  dplyr::rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+```
+
+So, I think I finally computed the correct SD here, and plotted it against the log2 values generated above. Importantly in this plot is that I didn't collapse the log2 values, so each gene has multiple sets of log2 values corresponding to the same sets of SDs. It's nice, but not really what we want, I think.
+```{r}
+test<- degenes.rld %>% 
+  group_by(gene, size, sex) %>% 
+  mutate(stdev=sd(rld)) %>% 
+  group_by(gene) %>% 
+  mutate(mean.sd=mean(stdev)) %>%
+  merge(., de.counts)
+
+ggplot(test, aes(x=mean.sd, y=log2, shape=size, color=sex))+geom_point(position="jitter")
+
+```
+
+The next plot is a bit better, in my opinion. I take the "mean SD" and "mean log2" for each gene across the four conditions (i.e. large male, small male, large female, small female). Plot looks a lot nicer.
+
+```{r}
+
+test.2<-degenes.rld %>% 
+  group_by(gene, size, sex) %>% 
+  mutate(stdev=sd(rld)) %>% 
+  group_by(gene) %>% 
+  mutate(mean.sd=mean(stdev)) %>% merge(., (de.counts %>% 
+                                              group_by(gene, size, sex) %>% 
+                                              mutate(mean=mean(log2)) %>% 
+                                              group_by(gene) %>% 
+                                              mutate(mean.log2=mean(mean))))
+
+
+ggplot(test.2, aes(x=mean.sd, y=mean.log2))+geom_point(position="jitter")
+
+```
+
+
+Finally, you wanted me to also try this on the raw counts, and not the regularized log transformed counts. It's basically the same, and this graph is my favorite, so much so that I also goofed around and regressed mean expression against mean SD. It's significant, but the r^2 is like...0.3, so I'm pretty comfortable saying to our reviewers that no, we didn't just capture the "most variable" genes.
+```{r}
+
+test.3 <- de.counts %>%
+  group_by(gene, size, sex) %>% 
+  mutate(mean=mean(log2), sd=sd(log2)) %>% 
+  group_by(gene) %>% 
+  mutate(mean.log2=mean(mean), mean.sd=mean(sd))
+
+ggplot(test.3, aes(x=mean.sd, y=mean.log2))+geom_point(position="jitter")+geom_smooth(method="lm")
+
+```
+

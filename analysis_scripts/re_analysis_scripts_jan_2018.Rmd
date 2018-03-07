@@ -735,8 +735,7 @@ ggplot((group_by(interact.counts, gene, sex, size, tissue) %>% dplyr::summarise(
   geom_point()+geom_line(aes(group=interaction(tissue)))+
   #scale_x_discrete(labels=c("Head Horn", "Thorax Horn", "Wings"))+
   labs(x="condition", 
-       y="Mean Expression (log normalized counts)")+
-  facet_grid(~tissue)
+       y="Mean Expression (log normalized counts)")
 
 
 

@@ -189,6 +189,25 @@ degenes.rld<-t(rld.assay[de.size, ]) %>%
   mutate(samples=as.character(samples))%>%
   mutate(gene=factor(gene))
 
+##these two guys use too much memory, mostly because both of them are trying to make massive data frames (and converting them to a matrix didn't help, I tried that)
+
+all.counts <-t(abs(log2((counts(all.dds, 
+                               normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(all.dds), ., by="row.names") %>%
+  gather(gene, log2, (ncol(.)-length(de.size)+1):ncol(.)) %>%
+  dplyr::rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+
+allgenes.rld<-t(rld.assay) %>%
+  merge(colData(all.dds), ., by="row.names") %>%
+  gather(gene, rld, (ncol(.)-length(de.size)+1):ncol(.)) %>%
+  dplyr::rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+
 
 test<- degenes.rld %>% 
   group_by(gene, size, sex) %>% 
@@ -226,7 +245,18 @@ test.3 <- de.counts %>%
   group_by(gene) %>% 
   mutate(mean.log2=mean(mean), mean.sd=mean(sd))
 
-ggplot(test.3, aes(x=mean.sd, y=mean.log2))+geom_point(position="jitter")+geom_smooth(method="lm")
+
+#if you can get it to work, this guy should be what we want. 
+test.4<-all.counts%>%
+  group_by(gene, size, sex) %>% 
+  mutate(mean=mean(log2), sd=sd(log2)) %>% 
+  group_by(gene) %>% 
+  mutate(mean.log2=mean(mean), mean.sd=mean(sd))
+
+ggplot(test.3, aes(x=mean.sd, y=mean.log2, color="red"))+
+geom_point(position="jitter")+
+geom_point(data=test.4, aes(x=mean.sd, y=mean.log2), color="blue")
++geom_smooth(method="lm")
 #it looks basically the same so
 
 summary(lm(mean.log2~mean.sd, data=test.3))

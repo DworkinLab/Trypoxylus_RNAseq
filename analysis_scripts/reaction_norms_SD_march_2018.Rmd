@@ -106,7 +106,7 @@ interact.counts <- bind_rows(list(horn = hi.counts, thx = ti.counts, wing=wi.cou
 
 
 ```
-Okay, so below I graphed the mean expression for each gene, across the groups of sex, size, and tissue, and plotted it across the "four conditions", i.e. large and small males, and large and small females. All of these genes are the genes thare are DE based on the size*sex interaction, coerced into a vector of unique genes. 
+Okay, so below I graphed the mean expression for each gene, across the groups of sex, size, and tissue, and plotted it across the "four conditions", i.e. large and small males, and large and small females. All of these genes are the genes thare are DE based on the size*sex interaction, coerced into a vector of unique genes. Note that you asked me to make plots of just the genes DE due to interaction term in each tissue. I didn't realize I'd already done that, and the three graphs at the end are just to show that yes, each panel is the DE genes ONLY for that tissue. 
 ```{r}
 summarise.count <-interact.counts %>% group_by(gene, sex, size, tissue) %>% 
                      dplyr::summarise(mean=mean(expression)) %>% 
@@ -119,6 +119,12 @@ ggplot(summarise.count, aes(x=condition, y=mean, color=tissue))+
        y="Expression (log normalized counts)")+
   facet_grid(~tissue)
 
+ggplot(filter(interact.counts, tissue=="hdhorn") %>% group_by(gene, sex, size, tissue) %>% summarise(mean=mean(expression)) %>%tidyr::unite("condition", size , sex, sep=""), aes(x=condition, y=mean))+geom_point()+geom_line(aes(group=interaction(gene)))
+
+ggplot(filter(interact.counts, tissue=="thxhorn") %>% group_by(gene, sex, size, tissue) %>% summarise(mean=mean(expression)) %>%tidyr::unite("condition", size , sex, sep=""), aes(x=condition, y=mean))+geom_point()+geom_line(aes(group=interaction(gene)))
+
+
+ggplot(filter(interact.counts, tissue=="wings") %>% group_by(gene, sex, size, tissue) %>% summarise(mean=mean(expression)) %>%tidyr::unite("condition", size , sex, sep=""), aes(x=condition, y=mean))+geom_point()+geom_line(aes(group=interaction(gene)))
 ```
 
 The figure is a bit messy, so what I did after that was instead condense ALL of these values into "tissue means", which gets rid of a lot of data, but is kind of nice and interesting. I played around with calculating SE bars for this graph, but it kept freaking out and I abandoned it. If you've got a quick fix, by all means go for it. 
@@ -219,6 +225,27 @@ degenes.rld<-t(rld.assay[de.size, ]) %>%
   mutate(samples=as.character(samples))%>%
   mutate(gene=factor(gene))
 
+
+
+all.counts <-t(abs(log2((counts(all.dds, 
+                               normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(all.dds), ., by="row.names") %>%
+  gather(gene, log2, 10:48840) %>%
+  dplyr::rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene))
+
+
+nonde.counts <-t(abs(log2((counts(all.dds, 
+                               normalized=TRUE, replaced=FALSE)+0.5)))) %>%
+  merge(colData(all.dds), ., by="row.names") %>%
+  gather(gene, log2, 10:48840) %>%
+  dplyr::rename(samples=Row.names) %>%
+  mutate(samples=as.character(samples))%>%
+  mutate(gene=factor(gene)) %>% 
+  filter(!gene %in% de.size)
+
+
 ```
 
 So, I think I finally computed the correct SD here, and plotted it against the log2 values generated above. Importantly in this plot is that I didn't collapse the log2 values, so each gene has multiple sets of log2 values corresponding to the same sets of SDs. It's nice, but not really what we want, I think.
@@ -239,11 +266,11 @@ The next plot is a bit better, in my opinion. I take the "mean SD" and "mean log
 ```{r}
 
 test.2<-degenes.rld %>% 
-  group_by(gene, size, sex) %>% 
+  group_by(gene, size, sex, tissue) %>% 
   mutate(stdev=sd(rld)) %>% 
   group_by(gene) %>% 
   mutate(mean.sd=mean(stdev)) %>% merge(., (de.counts %>% 
-                                              group_by(gene, size, sex) %>% 
+                                              group_by(gene, size, sex, tissue) %>% 
                                               mutate(mean=mean(log2)) %>% 
                                               group_by(gene) %>% 
                                               mutate(mean.log2=mean(mean))))
@@ -258,12 +285,48 @@ Finally, you wanted me to also try this on the raw counts, and not the regulariz
 ```{r}
 
 test.3 <- de.counts %>%
-  group_by(gene, size, sex) %>% 
+  group_by(gene, size, sex, tissue) %>% 
   mutate(mean=mean(log2), sd=sd(log2)) %>% 
   group_by(gene) %>% 
-  mutate(mean.log2=mean(mean), mean.sd=mean(sd))
+  mutate(mean.log2=mean(mean), mean.sd=mean(sd)) %>%
+    mutate(subset=factor(c("de")))
+
+
 
 ggplot(test.3, aes(x=mean.sd, y=mean.log2))+geom_point(position="jitter")+geom_smooth(method="lm")
 
+```
+
+
+So, plotting all the non-de genes alongside the DE genes becomes....messy. This graph is really really hard to read, and the DE genes basically vanish. 
+```{r}
+test.6<-nonde.counts %>%
+  group_by(gene, size, sex, tissue) %>% 
+  mutate(mean=mean(log2), sd=sd(log2)) %>% 
+  group_by(gene) %>% 
+  mutate(mean.log2=mean(mean), mean.sd=mean(sd)) %>%
+  mutate(subset=factor(c("all")))
+
+test.7<-bind_rows(test.3, test.6)
+
+ggplot(test.7, aes(x=mean.sd, y=mean.log2, color=subset, shape=subset))+
+  geom_point(position="jitter")
+```
+
+To kind of counteract this and make this make sense, I ended up just plotting the non-DE genes. 
+```{r}
+ggplot(test.6, aes(x=mean.sd, y=mean.log2))+
+  geom_point(position="jitter")+geom_smooth(method="lm")
+```
+
+So that they are next to each other, here's the DE genes again
+
+```{r}
+ggplot(test.3, aes(x=mean.sd, y=mean.log2))+geom_point(position="jitter")+geom_smooth(method="lm")
+
+```
+I then ran a t-test comparing mean SD across between the DE genes and the Non-DE genes. The DE genes have a statistically significant, but LOWER, mean SD than the non-DE genes. I'm pretty confident we can answer "no" to the reviewer's comment now....even if it's looking "weird" 
+```{r}
+t.test(mean.sd~subset, data=test.7)
 ```
 
